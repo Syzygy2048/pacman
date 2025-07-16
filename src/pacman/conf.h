@@ -114,6 +114,15 @@ typedef struct __config_t {
 	/* conf file options */
 	/* I Love Candy! */
 	unsigned short chomp;
+	/* progress bar customization */
+	char *ILoveCandy_pac_symbol_even;
+	char *ILoveCandy_pac_symbol_odd;
+	int ILoveCandy_pellet_symbol_freq;
+	char *ILoveCandy_pellet_symbol_on;
+	char *ILoveCandy_pellet_symbol_off;
+	int ILoveCandy_done_symbol_freq;
+	char *ILoveCandy_prog_done_symbol_on;
+	char *ILoveCandy_prog_done_symbol_off;
 	/* format target pkg lists as table */
 	unsigned short verbosepkglists;
 	/* number of parallel download streams */

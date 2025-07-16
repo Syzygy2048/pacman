@@ -162,18 +162,34 @@ static void fill_progress(const int percent, const int proglen)
 		for(i = hashlen; i > 0; --i) {
 			/* if special progress bar enabled */
 			if(config->chomp) {
+				#define ILC_WHITE         "\033[0;37m"
+				#define ILC_YELLOW        "\033[0;33m"
+				#define ILC_NOCOLOR       "\033[0m"
+				#define ILC_RED           "\033[0;31m"
 				if(i > hashlen - hash) {
-					putchar('-');
+					if (i % config->ILoveCandy_done_symbol_freq == 0){
+						fputs(config->ILoveCandy_prog_done_symbol_on, stdout);
+					} else {
+						fputs(config->ILoveCandy_prog_done_symbol_off, stdout);
+					}
 				} else if(i == hashlen - hash) {
 					if(percent % 2 == 0) {
-						fputs("\033[1;33mC\033[m", stdout);
+						fputs(ILC_YELLOW, stdout);
+						fputs(config->ILoveCandy_pac_symbol_even, stdout);
+						fputs(ILC_NOCOLOR, stdout);
 					} else {
-						fputs("\033[1;33mc\033[m", stdout);
+						fputs(ILC_YELLOW, stdout);
+						fputs(config->ILoveCandy_pac_symbol_odd, stdout);
+						fputs(ILC_NOCOLOR, stdout);
 					}
-				} else if(i % 3 == 0) {
-					fputs("\033[0;37mo\033[m", stdout);
+				} else if(i % config->ILoveCandy_pellet_symbol_freq == 0) {
+					fputs(ILC_RED, stdout);
+					fputs(config->ILoveCandy_pellet_symbol_on, stdout);
+					fputs(ILC_NOCOLOR, stdout);
 				} else {
-					fputs("\033[0;37m \033[m", stdout);
+					fputs(ILC_WHITE, stdout);
+					fputs(config->ILoveCandy_pellet_symbol_off, stdout);
+					fputs(ILC_NOCOLOR, stdout);
 				}
 			} /* else regular progress bar */
 			else if(i > hashlen - hash) {

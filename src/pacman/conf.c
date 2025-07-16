@@ -163,6 +163,13 @@ int config_free(config_t *oldconfig)
 	free(oldconfig->print_format);
 	FREELIST(oldconfig->architectures);
 	wordsplit_free(oldconfig->xfercommand_argv);
+	/* Free ILoveCandy progress bar customization strings */
+	free(oldconfig->ILoveCandy_prog_done_symbol_on);
+	free(oldconfig->ILoveCandy_prog_done_symbol_off);
+	free(oldconfig->ILoveCandy_pac_symbol_even);
+	free(oldconfig->ILoveCandy_pac_symbol_odd);
+	free(oldconfig->ILoveCandy_pellet_symbol_on);
+	free(oldconfig->ILoveCandy_pellet_symbol_off);
 	free(oldconfig);
 
 	return 0;
@@ -614,6 +621,31 @@ static int _parse_options(const char *key, char *value,
 			pm_printf(ALPM_LOG_DEBUG, "config: usesyslog\n");
 		} else if(strcmp(key, "ILoveCandy") == 0) {
 			config->chomp = 1;
+			/* Set default progress bar customization when ILoveCandy is enabled, only if not already set */
+			if(!config->ILoveCandy_prog_done_symbol_on) {
+				config->ILoveCandy_prog_done_symbol_on = strdup("-");
+			}
+			if(!config->ILoveCandy_prog_done_symbol_off) {
+				config->ILoveCandy_prog_done_symbol_off = strdup("-");
+			}
+			if(!config->ILoveCandy_pac_symbol_even) {
+				config->ILoveCandy_pac_symbol_even = strdup("C");
+			}
+			if(!config->ILoveCandy_pac_symbol_odd) {
+				config->ILoveCandy_pac_symbol_odd = strdup("c");
+			}
+			if(config->ILoveCandy_pellet_symbol_freq == 0) {
+				config->ILoveCandy_pellet_symbol_freq = 3;
+			}
+			if(config->ILoveCandy_done_symbol_freq == 0) {
+				config->ILoveCandy_done_symbol_freq = 1;
+			}
+			if(!config->ILoveCandy_pellet_symbol_on) {
+				config->ILoveCandy_pellet_symbol_on = strdup("o");
+			}
+			if(!config->ILoveCandy_pellet_symbol_off) {
+				config->ILoveCandy_pellet_symbol_off = strdup(" ");
+			}
 			pm_printf(ALPM_LOG_DEBUG, "config: chomp\n");
 		} else if(strcmp(key, "VerbosePkgLists") == 0) {
 			config->verbosepkglists = 1;
@@ -762,6 +794,44 @@ static int _parse_options(const char *key, char *value,
 			}
 
 			config->parallel_downloads = number;
+		} else if(strcmp(key, "ILoveCandy_ProgDoneSymbolOn") == 0) {
+			free(config->ILoveCandy_prog_done_symbol_on);
+			config->ILoveCandy_prog_done_symbol_on = strdup(value);
+		} else if(strcmp(key, "ILoveCandy_ProgDoneSymbolOff") == 0) {
+			free(config->ILoveCandy_prog_done_symbol_off);
+			config->ILoveCandy_prog_done_symbol_off = strdup(value);
+		} else if(strcmp(key, "ILoveCandy_PacSymbolEven") == 0) {
+			free(config->ILoveCandy_pac_symbol_even);
+			config->ILoveCandy_pac_symbol_even = strdup(value);
+		} else if(strcmp(key, "ILoveCandy_PacSymbolOdd") == 0) {
+			free(config->ILoveCandy_pac_symbol_odd);
+			config->ILoveCandy_pac_symbol_odd = strdup(value);
+		} else if(strcmp(key, "ILoveCandy_PelletSymbolOn") == 0) {
+			free(config->ILoveCandy_pellet_symbol_on);
+			config->ILoveCandy_pellet_symbol_on = strdup(value);
+		} else if(strcmp(key, "ILoveCandy_PelletSymbolOff") == 0) {
+			free(config->ILoveCandy_pellet_symbol_off);
+			config->ILoveCandy_pellet_symbol_off = strdup(value);
+		} else if(strcmp(key, "ILoveCandy_PelletSymbolFreq") == 0) {
+			long number;
+			int err = parse_number(value, &number);
+			if(err || number < 1) {
+				pm_printf(ALPM_LOG_ERROR,
+						_("config file %s, line %d: invalid value for '%s' : '%s'\n"),
+						file, linenum, "ILoveCandy_PelletSymbolFreq", value);
+				return 1;
+			}
+			config->ILoveCandy_pellet_symbol_freq = number;
+		} else if(strcmp(key, "ILoveCandy_DoneSymbolFreq") == 0) {
+		long number;
+		int err = parse_number(value, &number);
+		if(err || number < 1) {
+			pm_printf(ALPM_LOG_ERROR,
+					_("config file %s, line %d: invalid value for '%s' : '%s'\n"),
+					file, linenum, "ILoveCandy_DoneSymbolFreq", value);
+			return 1;
+		}
+		config->ILoveCandy_done_symbol_freq = number;
 		} else {
 			pm_printf(ALPM_LOG_WARNING,
 					_("config file %s, line %d: directive '%s' in section '%s' not recognized.\n"),
