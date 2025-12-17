@@ -661,7 +661,12 @@ static int _parse_options(const char *key, char *value,
 		} else if(strcmp(key, "DisableDownloadTimeout") == 0) {
 			config->disable_dl_timeout = 1;
 		} else if(strcmp(key, "DisableSandbox") == 0) {
-			config->disable_sandbox = 1;
+			config->disable_sandbox_filesystem = 1;
+			config->disable_sandbox_syscalls = 1;
+		} else if(strcmp(key, "DisableSandboxFilesystem") == 0) {
+			config->disable_sandbox_filesystem = 1;
+		} else if(strcmp(key, "DisableSandboxSyscalls") == 0) {
+			config->disable_sandbox_syscalls = 1;
 		} else {
 			pm_printf(ALPM_LOG_WARNING,
 					_("config file %s, line %d: directive '%s' in section '%s' not recognized.\n"),
@@ -680,8 +685,25 @@ static int _parse_options(const char *key, char *value,
 		} else if(strcmp(key, "HoldPkg") == 0) {
 			setrepeatingoption(value, "HoldPkg", &(config->holdpkg));
 		} else if(strcmp(key, "CacheDir") == 0) {
+			/* FIXME - fails when multiple paths are specified on one line (#289)
+			   FIXME - fails when directory does not exist (#292)
+			char *path = resolve_path(value, "CacheDir");
+			if(path != NULL) {
+				setrepeatingoption(path, "CacheDir", &(config->cachedirs));
+			} else {
+				return 1;
+			}
+			*/
 			setrepeatingoption(value, "CacheDir", &(config->cachedirs));
 		} else if(strcmp(key, "HookDir") == 0) {
+			/* FIXME - fails when multiple paths are specified on one line (#289)
+			char *path = resolve_path(value, "HookDir");
+			if(path != NULL) {
+				setrepeatingoption(path, "HookDir", &(config->hookdirs));
+			} else {
+				return 1;
+			}
+			*/
 			setrepeatingoption(value, "HookDir", &(config->hookdirs));
 		} else if(strcmp(key, "Architecture") == 0) {
 			alpm_list_t *i, *arches = NULL;
@@ -693,19 +715,34 @@ static int _parse_options(const char *key, char *value,
 		} else if(strcmp(key, "DBPath") == 0) {
 			/* don't overwrite a path specified on the command line */
 			if(!config->dbpath) {
-				config->dbpath = strdup(value);
-				pm_printf(ALPM_LOG_DEBUG, "config: dbpath: %s\n", value);
+				char *path = resolve_path(value, "DBPath");
+				if(path != NULL) {
+					config->dbpath = path;
+				} else {
+					return 1;
+				}
+				pm_printf(ALPM_LOG_DEBUG, "config: dbpath: %s\n", path);
 			}
 		} else if(strcmp(key, "RootDir") == 0) {
 			/* don't overwrite a path specified on the command line */
 			if(!config->rootdir) {
-				config->rootdir = strdup(value);
-				pm_printf(ALPM_LOG_DEBUG, "config: rootdir: %s\n", value);
+				char *path = resolve_path(value, "RootDir");
+				if(path != NULL) {
+					config->rootdir = path;
+				} else {
+					return 1;
+				}
+				pm_printf(ALPM_LOG_DEBUG, "config: rootdir: %s\n", path);
 			}
 		} else if(strcmp(key, "GPGDir") == 0) {
 			if(!config->gpgdir) {
-				config->gpgdir = strdup(value);
-				pm_printf(ALPM_LOG_DEBUG, "config: gpgdir: %s\n", value);
+				char *path = resolve_path(value, "GPGDir");
+				if(path != NULL) {
+					config->gpgdir = path;
+				} else {
+					return 1;
+				}
+				pm_printf(ALPM_LOG_DEBUG, "config: gpgdir: %s\n", path);
 			}
 		} else if(strcmp(key, "LogFile") == 0) {
 			if(!config->logfile) {
@@ -1008,11 +1045,13 @@ static int setup_libalpm(void)
 	alpm_option_set_checkspace(handle, config->checkspace);
 	alpm_option_set_usesyslog(handle, config->usesyslog);
 
-	if(config->sandboxuser) {
-		alpm_option_set_sandboxuser(handle, config->sandboxuser);
+	if((ret = alpm_option_set_sandboxuser(handle, config->sandboxuser)) != 0) {
+		pm_printf(ALPM_LOG_ERROR, _("problem setting DownloadUser '%s' (user does not exist)\n"),
+					config->sandboxuser);
+		return ret;
 	}
-
-	alpm_option_set_disable_sandbox(handle, config->disable_sandbox);
+	alpm_option_set_disable_sandbox_filesystem(handle, config->disable_sandbox_filesystem);
+	alpm_option_set_disable_sandbox_syscalls(handle, config->disable_sandbox_syscalls);
 
 	alpm_option_set_ignorepkgs(handle, config->ignorepkg);
 	alpm_option_set_ignoregroups(handle, config->ignoregrp);

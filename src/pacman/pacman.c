@@ -227,8 +227,12 @@ static void usage(int op, const char * const myname)
 		addlist(_("      --disable-download-timeout\n"
 		          "                       use relaxed timeouts for download\n"));
 		addlist(_("      --disable-sandbox\n"
-		          "                       disable the sandbox used for the downloader process\n"));
-	}
+		          "                       disables all sandbox features used for the downloader process\n"));
+		addlist(_("      --disable-sandbox-filesystem\n"
+		          "                       disables the filesystem part of the downloader process sandbox\n"));
+		addlist(_("      --disable-sandbox-syscalls\n"
+		          "                       disables the syscalls part of the downloader process sandbox\n"));
+				}
 	list = alpm_list_msort(list, alpm_list_count(list), options_cmp);
 	for(i = list; i; i = alpm_list_next(i)) {
 		fputs((const char *)i->data, stdout);
@@ -403,7 +407,14 @@ static int parsearg_global(int opt)
 			}
 			break;
 		case OP_CACHEDIR:
-			config->cachedirs = alpm_list_add(config->cachedirs, strdup(optarg));
+			{
+				char *path = resolve_path(optarg, "--cachedir");
+				if(path != NULL) {
+					config->cachedirs = alpm_list_add(config->cachedirs, path);
+				} else {
+					return 2;
+				}
+			}
 			break;
 		case OP_COLOR:
 			if(strcmp("never", optarg) == 0) {
@@ -459,11 +470,25 @@ static int parsearg_global(int opt)
 			config->noprogressbar = 1;
 			break;
 		case OP_GPGDIR:
-			free(config->gpgdir);
-			config->gpgdir = strdup(optarg);
+			{
+				char *path = resolve_path(optarg, "--gpgdir");
+				if(path != NULL) {
+					free(config->gpgdir);
+					config->gpgdir = path;
+				} else {
+					return 2;
+				}
+			}
 			break;
 		case OP_HOOKDIR:
-			config->hookdirs = alpm_list_add(config->hookdirs, strdup(optarg));
+			{
+				char *path = resolve_path(optarg, "--hookdir");
+				if(path != NULL) {
+					config->hookdirs = alpm_list_add(config->hookdirs, path);
+				} else {
+					return 2;
+				}
+			}
 			break;
 		case OP_LOGFILE:
 			free(config->logfile);
@@ -477,23 +502,51 @@ static int parsearg_global(int opt)
 			break;
 		case OP_DBPATH:
 		case 'b':
-			free(config->dbpath);
-			config->dbpath = strdup(optarg);
+			{
+				char *path = resolve_path(optarg, "--dbpath");
+				if(path != NULL) {
+					free(config->dbpath);
+					config->dbpath = path;
+				} else {
+					return 2;
+				}
+			}
 			break;
 		case OP_ROOT:
 		case 'r':
-			free(config->rootdir);
-			config->rootdir = strdup(optarg);
+			{
+				char *path = resolve_path(optarg, "--root");
+				if(path != NULL) {
+					free(config->rootdir);
+					config->rootdir = path;
+				} else {
+					return 2;
+				}
+			}
 			break;
 		case OP_SYSROOT:
-			free(config->sysroot);
-			config->sysroot = strdup(optarg);
+			{
+				char *path = resolve_path(optarg, "--sysroot");
+				if(path != NULL) {
+					free(config->sysroot);
+					config->sysroot = path;
+				} else {
+					return 2;
+				}
+			}
 			break;
 		case OP_DISABLEDLTIMEOUT:
 			config->disable_dl_timeout = 1;
 			break;
 		case OP_DISABLESANDBOX:
-			config->disable_sandbox = 1;
+			config->disable_sandbox_filesystem = 1;
+			config->disable_sandbox_syscalls = 1;
+			break;
+		case OP_DISABLESANDBOXFILESYSTEM:
+			config->disable_sandbox_filesystem = 1;
+			break;
+		case OP_DISABLESANDBOXSYSCALLS:
+			config->disable_sandbox_syscalls = 1;
 			break;
 		case OP_VERBOSE:
 		case 'v':
@@ -982,6 +1035,8 @@ static int parseargs(int argc, char *argv[])
 		{"color",      required_argument, 0, OP_COLOR},
 		{"disable-download-timeout", no_argument, 0, OP_DISABLEDLTIMEOUT},
 		{"disable-sandbox", no_argument, 0, OP_DISABLESANDBOX},
+		{"disable-sandbox-filesystem", no_argument, 0, OP_DISABLESANDBOXFILESYSTEM},
+		{"disable-sandbox-syscalls", no_argument, 0, OP_DISABLESANDBOXSYSCALLS},
 		{0, 0, 0, 0}
 	};
 

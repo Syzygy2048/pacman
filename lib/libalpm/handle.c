@@ -28,6 +28,7 @@
 #include <syslog.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <pwd.h>
 
 /* libalpm */
 #include "handle.h"
@@ -604,9 +605,18 @@ int SYMEXPORT alpm_option_set_gpgdir(alpm_handle_t *handle, const char *gpgdir)
 
 int SYMEXPORT alpm_option_set_sandboxuser(alpm_handle_t *handle, const char *sandboxuser)
 {
+	struct passwd const *pw = NULL;
 	CHECK_HANDLE(handle, return -1);
 	if(handle->sandboxuser) {
 		FREE(handle->sandboxuser);
+	}
+
+	if(sandboxuser != NULL) {
+		pw = getpwnam(sandboxuser);
+		if(pw == NULL) {
+			_alpm_log(handle, ALPM_LOG_DEBUG, "'sandboxuser' (%s) does not exist", sandboxuser);
+			return 1;
+		}
 	}
 
 	STRDUP(handle->sandboxuser, sandboxuser, RET_ERR(handle, ALPM_ERR_MEMORY, -1));
@@ -958,16 +968,50 @@ int SYMEXPORT alpm_option_set_parallel_downloads(alpm_handle_t *handle,
 	return 0;
 }
 
-int SYMEXPORT alpm_option_get_disable_sandbox(alpm_handle_t *handle)
+int alpm_option_get_disable_sandbox(alpm_handle_t *handle)
 {
 	CHECK_HANDLE(handle, return -1);
-	return handle->disable_sandbox;
+
+	if(handle->disable_sandbox_filesystem && handle->disable_sandbox_syscalls) {
+		return 2;
+	} else if (handle->disable_sandbox_filesystem || handle->disable_sandbox_syscalls) {
+		return 1;
+	}
+
+	return 0;
 }
 
-int SYMEXPORT alpm_option_set_disable_sandbox(alpm_handle_t *handle,
-		unsigned short disable_sandbox)
+int alpm_option_set_disable_sandbox(alpm_handle_t *handle, unsigned short disable_sandbox) {
+	CHECK_HANDLE(handle, return -1);
+	handle->disable_sandbox_filesystem = disable_sandbox;
+	handle->disable_sandbox_syscalls = disable_sandbox;
+	return 0;
+}
+
+int SYMEXPORT alpm_option_get_disable_sandbox_filesystem(alpm_handle_t *handle)
 {
 	CHECK_HANDLE(handle, return -1);
-	handle->disable_sandbox = disable_sandbox;
+	return handle->disable_sandbox_filesystem;
+}
+
+int SYMEXPORT alpm_option_set_disable_sandbox_filesystem(alpm_handle_t *handle,
+		unsigned short disable_sandbox_filesystem)
+{
+	CHECK_HANDLE(handle, return -1);
+	handle->disable_sandbox_filesystem = disable_sandbox_filesystem;
+	return 0;
+}
+
+int SYMEXPORT alpm_option_get_disable_sandbox_syscalls(alpm_handle_t *handle)
+{
+	CHECK_HANDLE(handle, return -1);
+	return handle->disable_sandbox_syscalls;
+}
+
+int SYMEXPORT alpm_option_set_disable_sandbox_syscalls(alpm_handle_t *handle,
+		unsigned short disable_sandbox_syscalls)
+{
+	CHECK_HANDLE(handle, return -1);
+	handle->disable_sandbox_syscalls = disable_sandbox_syscalls;
 	return 0;
 }

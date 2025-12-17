@@ -1,6 +1,6 @@
 project('pacman',
         'c',
-        version : '7.0.0-Nerd',
+        version : '7.1.0-Nerd',
         license : 'GPLv2+',
         default_options : [
           'c_std=gnu99',
@@ -10,7 +10,7 @@ project('pacman',
         ],
         meson_version : '>= 0.61')
 
-libalpm_version = '15.0.0'
+libalpm_version = '16.0.1'
 
 cc = meson.get_compiler('c')
 
@@ -99,7 +99,7 @@ libcurl = dependency('libcurl',
                      static : get_option('buildstatic'))
 conf.set('HAVE_LIBCURL', libcurl.found())
 
-needed_gpgme_version = '>=1.12.0'
+needed_gpgme_version = '>=1.18.0'
 gpgme = dependency('gpgme',
                    version : needed_gpgme_version,
                    required : get_option('gpgme'),

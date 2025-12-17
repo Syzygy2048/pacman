@@ -23,6 +23,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -59,6 +60,7 @@
 #include "alpm_list.h"
 #include "handle.h"
 #include "trans.h"
+#include "sandbox.h"
 
 #ifndef HAVE_STRSEP
 /** Extracts tokens from a string.
@@ -946,39 +948,64 @@ const char *_alpm_filecache_setup(alpm_handle_t *handle)
 	return cachedir;
 }
 
-/** Create a temporary directory under the supplied directory.
- * The new directory is writable by the download user, and will be
- * removed after the download operation has completed.
+/** Setup directory for downloading files.
+ * When using the sandbox, create a temporary directory under the supplied directory. The new
+ * directory is writable by the download user, and will be removed after the download operation
+ * has completed. When not using the sandbox, download in the supplied directory.
+ * @param handle the context handle
  * @param dir existing sync or cache directory
- * @param user download user name
- * @return pointer to a sub-directory writable by the download user inside the existing directory.
+ * @return pointer to the download directory.
  */
-char *_alpm_temporary_download_dir_setup(const char *dir, const char *user)
+char *_alpm_download_dir_setup(alpm_handle_t *handle, const char *dir)
 {
-	struct passwd const *pw = NULL;
-
-	ASSERT(dir != NULL, return NULL);
-	if(user != NULL) {
-		ASSERT((pw = getpwnam(user)) != NULL, return NULL);
-	}
-
-	const char template[] = "download-XXXXXX";
-	size_t newdirlen = strlen(dir) + sizeof(template) + 1;
 	char *newdir = NULL;
-	MALLOC(newdir, newdirlen, return NULL);
-	snprintf(newdir, newdirlen - 1, "%s%s", dir, template);
-	if(mkdtemp(newdir) == NULL) {
-		free(newdir);
-		return NULL;
-	}
-	if(pw != NULL) {
-		if(chown(newdir, pw->pw_uid, pw->pw_gid) == -1) {
-			free(newdir);
-			return NULL;
+	ASSERT(dir != NULL, RET_ERR(handle, ALPM_ERR_WRONG_ARGS, NULL));
+
+	if(_alpm_use_sandbox(handle)) {
+		struct passwd const *pw = NULL;
+		errno = 0;
+		pw = getpwnam(handle->sandboxuser);
+
+		if(pw == NULL) {
+			if(errno == 0) {
+				_alpm_log(handle, ALPM_LOG_ERROR,
+						_("download user '%s' does not exist\n"), handle->sandboxuser);
+			} else {
+				_alpm_log(handle, ALPM_LOG_ERROR,
+						_("failed to get download user '%s': %s\n"),
+						handle->sandboxuser, strerror(errno));
+			}
+			RET_ERR(handle, ALPM_ERR_RETRIEVE_PREPARE, NULL);
 		}
+
+		const char template[] = "download-XXXXXX";
+		size_t newdirlen = strlen(dir) + sizeof(template) + 1;
+		MALLOC(newdir, newdirlen, RET_ERR(handle, ALPM_ERR_MEMORY, NULL));
+		snprintf(newdir, newdirlen - 1, "%s%s", dir, template);
+
+		if(mkdtemp(newdir) == NULL) {
+		_alpm_log(handle, ALPM_LOG_ERROR,
+				_("failed to create temporary download directory %s: %s\n"),
+				newdir, strerror(errno));
+			free(newdir);
+			RET_ERR(handle, ALPM_ERR_RETRIEVE_PREPARE, NULL);
+		}
+
+		if(chown(newdir, pw->pw_uid, pw->pw_gid) == -1) {
+			_alpm_log(handle, ALPM_LOG_ERROR,
+					_("failed to chown temporary download directory %s: %s\n"),
+					newdir, strerror(errno));
+			free(newdir);
+			RET_ERR(handle, ALPM_ERR_RETRIEVE_PREPARE, NULL);
+		}
+
+		newdir[newdirlen-2] = '/';
+		newdir[newdirlen-1] = '\0';
+	} else {
+		/* we are not using sandbox features, download directly to the current directory */
+		STRDUP(newdir, dir, return NULL);
 	}
-	newdir[newdirlen-2] = '/';
-	newdir[newdirlen-1] = 0;
+
 	return newdir;
 }
 

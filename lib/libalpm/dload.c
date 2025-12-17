@@ -1151,14 +1151,15 @@ static int finalize_download_locations(alpm_list_t *payloads, const char *localp
 	return returnvalue;
 }
 
-static void prepare_resumable_downloads(alpm_list_t *payloads, const char *localpath,
-		const char *user)
+static void prepare_resumable_downloads(alpm_handle_t *handle, alpm_list_t *payloads,
+		const char *localpath)
 {
 	struct passwd const *pw = NULL;
+	ASSERT(handle != NULL, return);
 	ASSERT(payloads != NULL, return);
 	ASSERT(localpath != NULL, return);
-	if(user != NULL) {
-		ASSERT((pw = getpwnam(user)) != NULL, return);
+	if(_alpm_use_sandbox(handle)) {
+		ASSERT((pw = getpwnam(handle->sandboxuser)) != NULL, return);
 	}
 	alpm_list_t *p;
 	for(p = payloads; p; p = p->next) {
@@ -1172,7 +1173,7 @@ static void prepare_resumable_downloads(alpm_list_t *payloads, const char *local
 			}
 			FREE(dest);
 		}
-		if(!payload->tempfile_name) {
+		if(!payload->tempfile_name || !_alpm_use_sandbox(handle)) {
 			continue;
 		}
 		const char *filename = mbasename(payload->tempfile_name);
@@ -1203,13 +1204,13 @@ int _alpm_download(alpm_handle_t *handle,
 		const char *temporary_localpath)
 {
 	int ret;
-	int finalize_ret;
+	int finalize_ret = 0;
 	int childsig = 0;
-	prepare_resumable_downloads(payloads, localpath, handle->sandboxuser);
+	prepare_resumable_downloads(handle, payloads, localpath);
 
 	if(handle->fetchcb == NULL) {
 #ifdef HAVE_LIBCURL
-		if(handle->sandboxuser) {
+		if(_alpm_use_sandbox(handle)) {
 			ret = curl_download_internal_sandboxed(handle, payloads, temporary_localpath, &childsig);
 		} else {
 			ret = curl_download_internal(handle, payloads);
@@ -1285,8 +1286,10 @@ download_signature:
 		ret = updated ? 0 : 1;
 	}
 
-	finalize_ret = finalize_download_locations(payloads, localpath);
-	_alpm_remove_temporary_download_dir(temporary_localpath);
+	if(_alpm_use_sandbox(handle)) {
+		finalize_ret = finalize_download_locations(payloads, localpath);
+		_alpm_remove_temporary_download_dir(temporary_localpath);
+	}
 
 	/* propagate after finalizing so .part files get copied over */
 	if(childsig != 0) {
@@ -1330,7 +1333,7 @@ int SYMEXPORT alpm_fetch_pkgurl(alpm_handle_t *handle, const alpm_list_t *urls,
 
 	/* find a valid cache dir to download to */
 	cachedir = _alpm_filecache_setup(handle);
-	temporary_cachedir = _alpm_temporary_download_dir_setup(cachedir, handle->sandboxuser);
+	temporary_cachedir = _alpm_download_dir_setup(handle, cachedir);
 	ASSERT(temporary_cachedir != NULL, return -1);
 
 	for(i = urls; i; i = i->next) {

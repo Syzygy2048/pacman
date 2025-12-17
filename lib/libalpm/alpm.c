@@ -21,12 +21,11 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <unistd.h>
+
 #ifdef HAVE_LIBCURL
 #include <curl/curl.h>
 #endif
-
-#include <errno.h>
-#include <pwd.h>
 
 /* libalpm */
 #include "alpm.h"
@@ -42,7 +41,6 @@ alpm_handle_t SYMEXPORT *alpm_initialize(const char *root, const char *dbpath,
 	const char *lf = "db.lck";
 	char *hookdir;
 	size_t hookdirlen, lockfilelen;
-	struct passwd const *pw = NULL;
 	alpm_handle_t *myhandle = _alpm_handle_new();
 
 	if(myhandle == NULL) {
@@ -75,6 +73,9 @@ alpm_handle_t SYMEXPORT *alpm_initialize(const char *root, const char *dbpath,
 		goto cleanup;
 	}
 
+	/* used for testing whether to enable features requiring root access */
+	myhandle->user = getuid();
+
 #ifdef HAVE_LIBCURL
 	curl_global_init(CURL_GLOBAL_ALL);
 	myhandle->curlm = curl_multi_init();
@@ -82,10 +83,6 @@ alpm_handle_t SYMEXPORT *alpm_initialize(const char *root, const char *dbpath,
 
 	myhandle->parallel_downloads = 1;
 
-	/* set default sandboxuser */
-	ASSERT((pw = getpwuid(0)) != NULL, myerr = errno; goto cleanup);
-	STRDUP(myhandle->sandboxuser, pw->pw_name, goto nomem);
-	
 #ifdef ENABLE_NLS
 	bindtextdomain("libalpm", LOCALEDIR);
 #endif

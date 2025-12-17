@@ -27,6 +27,7 @@
 #endif /* HAVE_SYS_PRCTL_H */
 #include <sys/types.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "alpm.h"
 #include "log.h"
@@ -35,6 +36,18 @@
 #include "sandbox_syscalls.h"
 #include "util.h"
 
+bool _alpm_use_sandbox(alpm_handle_t *handle)
+{
+	if(handle->user == 0 && 
+	   handle->sandboxuser != NULL && 
+	   (handle->disable_sandbox_filesystem == 0 || handle->disable_sandbox_syscalls == 0))
+	{
+		return true;
+	}
+
+	return false;
+}
+
 int SYMEXPORT alpm_sandbox_setup_child(alpm_handle_t *handle, const char* sandboxuser, const char* sandbox_path, bool restrict_syscalls)
 {
 	struct passwd const *pw = NULL;
@@ -42,15 +55,15 @@ int SYMEXPORT alpm_sandbox_setup_child(alpm_handle_t *handle, const char* sandbo
 	ASSERT(sandboxuser != NULL, return -1);
 	ASSERT(getuid() == 0, return -1);
 	ASSERT((pw = getpwnam(sandboxuser)), return -1);
-	if(sandbox_path != NULL && !handle->disable_sandbox) {
-		_alpm_sandbox_fs_restrict_writes_to(handle, sandbox_path);
+	if(sandbox_path != NULL && !handle->disable_sandbox_filesystem) {
+		ASSERT(_alpm_sandbox_fs_restrict_writes_to(handle, sandbox_path), return -1);
 	}
 #if defined(HAVE_SYS_PRCTL_H) && defined(PR_SET_NO_NEW_PRIVS)
 	/* make sure that we cannot gain more privileges later, failure is fine */
 	prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
 #endif /* HAVE_SYS_PRCTL && PR_SET_NO_NEW_PRIVS */
-	if(restrict_syscalls && !handle->disable_sandbox) {
-		_alpm_sandbox_syscalls_filter(handle);
+	if(restrict_syscalls && !handle->disable_sandbox_syscalls) {
+		ASSERT(_alpm_sandbox_syscalls_filter(handle), return -1);
 	}
 	ASSERT(setgid(pw->pw_gid) == 0, return -1);
 	ASSERT(setgroups(0, NULL) == 0, return -1);
@@ -183,8 +196,9 @@ bool _alpm_sandbox_process_cb_log(alpm_handle_t *handle, int callback_pipe) {
 
 	ASSERT(read_from_pipe(callback_pipe, &level, sizeof(level)) != -1, return false);
 	ASSERT(read_from_pipe(callback_pipe, &string_size, sizeof(string_size)) != -1, return false);
+	ASSERT(string_size > 0 && (size_t)string_size < SIZE_MAX, return false);
 
-	MALLOC(string, string_size + 1, return false);
+	MALLOC(string, (size_t)string_size + 1, return false);
 
 	ASSERT(read_from_pipe(callback_pipe, string, string_size) != -1, FREE(string); return false);
 	string[string_size] = '\0';
@@ -229,6 +243,7 @@ bool _alpm_sandbox_process_cb_download(alpm_handle_t *handle, int callback_pipe)
 	}
 
 	ASSERT(read_from_pipe(callback_pipe, &filename_size, sizeof(filename_size)) != -1, return false);;
+	ASSERT(filename_size < PATH_MAX, return false);
 
 	MALLOC(filename, filename_size + 1, return false);
 
